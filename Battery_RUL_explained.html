@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Прогноз ресурса аккумулятора (RUL) — разбор для инженеров</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f6f3; --surface:#ffffff; --ink:#171717; --muted:#6a6a6a;
+    --line:#e7e7e2; --soft:#f0f0eb;
+    --purple:#6c5ce7; --purple-bg:#f0edfd;
+    --green:#159a5b; --green-bg:#e9f8f0;
+    --blue:#2f74e0; --blue-bg:#eaf2fe;
+    --orange:#e0820f; --orange-bg:#fdf2e2;
+    --radius:18px; --radius-sm:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--ink);
+    line-height:1.62;font-size:16.5px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:0 22px}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:50;background:rgba(246,246,243,.82);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;gap:6px;flex-wrap:wrap;align-items:center;
+    padding-top:12px;padding-bottom:12px}
+  nav a{font-size:13px;color:var(--muted);text-decoration:none;padding:6px 12px;
+    border-radius:999px;transition:.18s;white-space:nowrap}
+  nav a:hover{background:var(--soft);color:var(--ink)}
+  nav .brand{font-weight:700;color:var(--ink);font-size:14px;margin-right:6px}
+
+  /* hero */
+  header{position:relative;overflow:hidden;padding:78px 0 56px}
+  .blob{position:absolute;width:520px;height:520px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, #b9aef7, #6c5ce7 60%, transparent 72%);
+    filter:blur(46px);opacity:.32;top:-160px;right:-120px;z-index:0;
+    animation:float 16s ease-in-out infinite}
+  .blob.two{background:radial-gradient(circle at 40% 40%,#9fe0c0,#159a5b 60%,transparent 72%);
+    width:360px;height:360px;top:120px;right:240px;opacity:.20;animation-duration:21s}
+  @keyframes float{0%,100%{transform:translate(0,0) scale(1)}
+    50%{transform:translate(-34px,34px) scale(1.08)}}
+  header .wrap{position:relative;z-index:1}
+  .pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+  .pill{font-size:12.5px;font-weight:600;padding:6px 13px;border-radius:999px}
+  .pill.dark{background:var(--ink);color:#fff}
+  .pill.line{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .pill.pur{background:var(--purple-bg);color:var(--purple)}
+  h1{font-size:43px;font-weight:800;letter-spacing:-.02em;line-height:1.08;margin-bottom:18px}
+  .lead{font-size:18.5px;color:#3a3a3a;max-width:680px}
+  .stats{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
+    padding:14px 18px;min-width:150px}
+  .stat .v{font-size:25px;font-weight:800;letter-spacing:-.01em}
+  .stat .v.pur{color:var(--purple)} .stat .v.grn{color:var(--green)}
+  .stat .k{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+  /* sections */
+  section{padding:42px 0;border-top:1px solid var(--line)}
+  .kicker{font-size:12.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--purple);margin-bottom:9px}
+  h2{font-size:28px;font-weight:800;letter-spacing:-.015em;margin-bottom:14px}
+  h3{font-size:18px;font-weight:700;margin:24px 0 8px}
+  p{margin-bottom:14px}
+  .step{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+    border-radius:50%;background:var(--ink);color:#fff;font-size:14px;font-weight:700;
+    margin-right:10px;vertical-align:middle}
+
+  /* cards */
+  .card{border-radius:var(--radius);padding:20px 22px;margin:16px 0;border:1px solid var(--line);
+    background:var(--surface)}
+  .card.method{border:none}
+  .card .tag{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.04em;
+    text-transform:uppercase;padding:3px 10px;border-radius:999px;margin-bottom:10px}
+  .green{background:var(--green-bg)} .green .tag{background:var(--green);color:#fff}
+  .purple{background:var(--purple-bg)} .purple .tag{background:var(--purple);color:#fff}
+  .blue{background:var(--blue-bg)} .blue .tag{background:var(--blue);color:#fff}
+  .orange{background:var(--orange-bg)} .orange .tag{background:var(--orange);color:#fff}
+  .card h4{font-size:16.5px;font-weight:700;margin-bottom:6px}
+  .card p:last-child{margin-bottom:0}
+
+  /* tip */
+  .tip{border-left:3px solid var(--purple);background:var(--surface);
+    border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:14px 18px;margin:16px 0;
+    font-size:15px}
+  .tip b{color:var(--purple)}
+
+  /* pipeline */
+  .pipeline{background:var(--ink);border-radius:var(--radius);padding:24px;margin:20px 0;color:#eee}
+  .pipeline .flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
+  .pipeline .flow:last-child{margin-bottom:0}
+  .node{background:#2a2a2a;border:1px solid #3a3a3a;border-radius:999px;padding:8px 15px;
+    font-size:13.5px;font-weight:600;color:#fff}
+  .node.acc{background:var(--purple);border-color:var(--purple)}
+  .node.win{background:var(--green);border-color:var(--green)}
+  .arr{color:#8a7ff0;font-weight:800}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:15px;
+    background:var(--surface);border-radius:var(--radius);overflow:hidden;border:1px solid var(--line)}
+  th,td{padding:12px 15px;text-align:left;border-bottom:1px solid var(--line)}
+  th{background:var(--soft);font-weight:700;font-size:13px;letter-spacing:.02em}
+  tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;font-size:12.5px;font-weight:700;padding:3px 11px;border-radius:999px}
+  .b-grn{background:var(--green-bg);color:var(--green)}
+  .b-blu{background:var(--blue-bg);color:var(--blue)}
+  .b-ora{background:var(--orange-bg);color:var(--orange)}
+  .b-gry{background:var(--soft);color:var(--muted)}
+  code{background:var(--soft);padding:1.5px 6px;border-radius:6px;font-size:14px;
+    font-family:'SF Mono',Menlo,monospace}
+  .muted{color:var(--muted)}
+  footer{padding:40px 0 70px;color:var(--muted);font-size:14px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <span class="brand">Ресурс аккумулятора · разбор</span>
+  <a href="#task">Задача</a>
+  <a href="#data">Данные</a>
+  <a href="#look">Данные глазами</a>
+  <a href="#setup">Постановка</a>
+  <a href="#lgbm">Признаки + LightGBM</a>
+  <a href="#loo">Честная оценка</a>
+  <a href="#lstm">LSTM</a>
+  <a href="#compare">Сравнение</a>
+  <a href="#glossary">Методы</a>
+</div></nav>
+
+<header>
+  <div class="blob"></div><div class="blob two"></div>
+  <div class="wrap">
+    <div class="pills">
+      <span class="pill dark">Курс · Накопители энергии</span>
+      <span class="pill line">Разбор для инженеров</span>
+      <span class="pill pur">признаки против LSTM</span>
+    </div>
+    <h1>Прогноз ресурса<br>аккумулятора (RUL)</h1>
+    <p class="lead">Пошаговый разбор: как по первым 100 циклам предсказать, сколько ещё "проживёт"
+      батарея.</p>
+    <div class="stats">
+      <div class="stat"><div class="v pur">R² ≈ 0,88</div><div class="k">честная оценка (leave-one-out)  модели</div></div>
+      <div class="stat"><div class="v grn">ΔQ(V)</div><div class="k">один физический признак несёт почти весь сигнал</div></div>
+      <div class="stat"><div class="v">84 ячейки</div><div class="k">ресурс предсказан по первым 100 циклам</div></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- 1 -->
+<section id="task">
+  <div class="kicker">Шаг 1 · Постановка</div>
+  <h2><span class="step">1</span>Что и зачем мы предсказываем</h2>
+  <p>Хранение энергии — обязательная часть ВИЭ: солнце и ветер непостоянны, и без аккумуляторов сеть
+    не сбалансировать. Но аккумуляторы деградируют, и ключевой практический вопрос — <b>сколько ещё
+    "проживёт" батарея</b>.</p>
+  <p>Формально это <b>регрессия</b>: по данным ранних циклов заряда-разряда предсказать полный ресурс
+    ячейки. Ресурс измеряется в циклах до падения ёмкости на 20% (то есть до 80% от номинала) — это и
+    есть <b>RUL (remaining useful life, остаточный ресурс)</b>.</p>
+  <div class="card method blue">
+    <span class="tag">Понятие · RUL</span>
+    <h4>Что такое «ресурс» в циклах</h4>
+    <p>Каждый цикл заряд-разряд понемногу изнашивает ячейку, её ёмкость медленно падает. RUL — число
+      циклов, которое ячейка отработает до порога 80% ёмкости. После этого батарею считают
+      выработавшей ресурс. Цель — назвать это число заранее, по короткому начальному тесту.</p>
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="data">
+  <div class="kicker">Шаг 2 · Данные</div>
+  <h2><span class="step">2</span>Набор Severson (Toyota / MIT / Stanford)</h2>
+  <p>Знаменитый набор: 124 LFP-ячейки, прогнанные до отказа. Его особенность поразительна: по кривым
+    <b>первых 100 циклов</b>, когда деградации почти не видно, уже можно предсказать, проживёт ячейка
+    300 циклов или 2000. Для занятия берём два батча (около 84 ячеек после канонической сшивки) — на
+    таком объёме результат уже близок к оригинальной статье.</p>
+  <div class="card green">
+    <span class="tag">Подготовка данных</span>
+    <h4>Каноническая очистка </h4>
+    <p>Загрузчик автоматически наводит порядок: отсеивает каналы без данных и ячейки, остановленные
+      до достижения порога 80% (для них нет корректного ресурса), а пять ячеек, которые приостановили
+      и продолжили в другом батче, «сшивает» обратно, чтобы их ресурс был полным. Это стандартный для
+      этого набора набор поправок.</p>
+  </div>
+  <p class="muted">Файлы тянутся в Colab прямой ссылкой (<code>wget</code>) и кешируются, чтобы при
+    повторном запуске грузиться мгновенно. Полный набор из 124 ячеек получается добавлением третьего
+    батча.</p>
+</section>
+
+<!-- 3 -->
+<section id="look">
+  <div class="kicker">Шаг 3 · Данные </div>
+  <h2><span class="step">3</span>Почему ранний прогноз нетривиален</h2>
+  <p>Сначала смотрим на кривые деградации: как падает разрядная ёмкость с числом циклов у разных
+    ячеек. Видно главное свойство набора — ячейки живут <b>очень по-разному, от 148 до 2237 циклов</b>,
+    но в первые ~100 циклов их кривые почти неразличимы.</p>
+  <div class="tip"><b>В этом и ценность задачи.</b> Если бы по началу было видно, кто проживёт долго,
+    прогноз был бы тривиален. Но кривые в начале слиты вместе, а судьба ячеек расходится в разы —
+    значит, сигнал спрятан в тонких деталях ранних циклов, и его нужно уметь извлечь.</div>
+</section>
+
+<!-- 4 -->
+<section id="setup">
+  <div class="kicker">Шаг 4 · Постановка и деление</div>
+  <h2><span class="step">4</span>Имитация реальности</h2>
+  <p>Цель — для каждой ячейки предсказать полный ресурс, используя <b>только первые 100 циклов</b>.
+    Это честная имитация практики: на заводе или в электромобиле хочется уже после короткого теста
+    знать, какая батарея проживёт долго, а какая — брак.</p>
+  <div class="card method orange">
+    <span class="tag">Приём · Логарифм цели</span>
+    <h4>Почему предсказываем log10(ресурс)</h4>
+    <p>Ресурс сильно скошен — от сотен до тысяч циклов. Если учить модель «в циклах», она будет
+      переживать за крупные значения и хуже работать на коротких. Поэтому учим предсказывать
+      <b>логарифм</b> ресурса (так разброс выравнивается), а метрики потом переводим обратно в циклы.</p>
+  </div>
+  <div class="card method blue">
+    <span class="tag">Сквозная тема · Утечка данных</span>
+    <h4>Делим по ячейке, а не по записям</h4>
+    <p>Один объект выборки — одна ячейка (одна строка). Здесь утечки нет автоматически. Но если бы мы
+      делали строку на каждый цикл и случайно перемешали, циклы одной ячейки попали бы и в обучение, и
+      в проверку — грубая утечка. Правило универсально (как для ветра и солнечных модулей):
+      <b>разделяй по физическому объекту, а не по отдельным записям</b>. В этом занятии train — 63
+      ячейки, test — 21.</p>
+  </div>
+</section>
+
+<!-- 5 -->
+<section id="lgbm">
+  <div class="kicker">Шаг 5 · Подход A</div>
+  <h2><span class="step">5</span>Признаки + LightGBM</h2>
+  <p>Первый подход — превратить ранние циклы в таблицу признаков и применить уже знакомый по ветру
+    <b>LightGBM</b>. Это прямое продолжение SCADA-блока: снова таблица чисел, снова градиентный бустинг.</p>
+
+  <div class="card method purple">
+    <span class="tag">Главный признак · ΔQ(V)</span>
+    <h4>Статья Severson</h4>
+    <p>Разрядную кривую можно записать как зависимость накопленной ёмкости от напряжения, Q(V).
+      Берём такую кривую на цикле 100 и вычитаем кривую на цикле 10 — получаем разницу <b>ΔQ(V)</b>.
+      Ключевой признак — <b>логарифм дисперсии (разброса) этой разницы</b>.</p>
+    <p>Интуиция: даже когда полная ёмкость почти не упала, <b>форма</b> разрядной кривой едва заметно
+      «гуляет», и величина этого разброса удивительно сильно связана с будущим ресурсом. Один
+      продуманный физический признак несёт почти весь сигнал — в этом и состоит открытие статьи.</p>
+  </div>
+
+  <div class="card method blue">
+    <span class="tag">Метод · Градиентный бустинг (LightGBM)</span>
+    <h4>Что это, без жаргона</h4>
+    <p>В основе — <b>дерево решений</b>: каскад пороговых правил «если разброс ΔQ(V) больше такого-то и
+      сопротивление меньше такого-то, то ресурс примерно столько-то». Бустинг строит много таких
+      деревьев последовательно, каждое исправляет ошибки предыдущих. Остальные признаки — наклон
+      кривой ёмкости за первые 100 циклов, ёмкость на циклах 2 и 100, внутреннее сопротивление, время
+      заряда и температура.</p>
+  </div>
+
+  <div class="tip"><b>Тонкость малой выборки.</b> У LightGBM есть параметр «минимум объектов в листе»
+    (по умолчанию 20). Когда ячеек в обучении всего 63, дерево почти не может разбиться и начинает
+    предсказывать константу. Поэтому порог снижают до 3. На больших данных так делать не нужно — это
+    именно поправка под десятки объектов.</div>
+
+  <div class="card green">
+    <span class="tag">Результат (одиночный тест)</span>
+    <h4>MAE 56 циклов · R² 0,96 · медианная ошибка 3,5%</h4>
+    <p>На отложенных 21 ячейке модель попадает очень точно. Но такой единичный тест на малой выборке
+      оптимистичен и шумен (пара удачных ячеек сильно качает оценку) — поэтому ниже мы измеряем
+      качество честнее.</p>
+  </div>
+
+  <h3>На что опирается модель</h3>
+  <p>Важность признаков (аналог SHAP для таблиц) показывает вклад каждого входа. Картина однозначная:
+    с большим отрывом лидирует <b>разброс ΔQ(V)</b>, далее — внутреннее сопротивление и время заряда.
+    То есть модель опирается именно на физически осмысленный признак, а не на случайные совпадения.</p>
+</section>
+
+<!-- 6 -->
+<section id="loo">
+  <div class="kicker">Шаг 6 · Честная оценка</div>
+  <h2><span class="step">6</span>Leave-one-out на малой выборке</h2>
+  <div class="card method blue">
+    <span class="tag">Метод · Leave-one-out</span>
+    <h4>Как честно мерить качество, когда данных мало</h4>
+    <p>Одиночный тест на 21 ячейке слишком зависит от того, какие ячейки в него попали.
+      <b>Leave-one-out</b> устраняет эту случайность: убираем одну ячейку, обучаемся на остальных 83,
+      предсказываем убранную — и так по кругу для каждой. В итоге есть прогноз для всех ячеек, и
+      метрики считаются по ним. Это устойчивая и честная оценка.</p>
+  </div>
+  <div class="card green">
+    <span class="tag">Опорный результат</span>
+    <h4>MAE 88 циклов · R² 0,88 · медианная ошибка 8,9%</h4>
+    <p>По всем 84 ячейкам честная оценка скромнее оптимистичного одиночного теста (R² 0,96), но всё
+      равно высокая — это <b>уже уровень оригинальной статьи</b>. Именно это число стоит считать
+      итоговой точностью фичевой модели.</p>
+  </div>
+</section>
+
+<!-- 7 -->
+<section id="lstm">
+  <div class="kicker">Шаг 7 · Подход B</div>
+  <h2><span class="step">7</span>LSTM на последовательностях</h2>
+  <p>Второй подход — не придумывать признаки руками, а скормить сети <b>сами ряды</b> за первые 100
+    циклов: по четыре величины на цикл — ёмкость, внутреннее сопротивление, время заряда и средняя
+    температура. Пусть сеть сама найдёт зависимость.</p>
+  <div class="card method purple">
+    <span class="tag">Метод · LSTM (рекуррентная сеть)</span>
+    <h4>Что это, на инженерном языке</h4>
+    <p>LSTM читает последовательность шаг за шагом (цикл за циклом) и поддерживает внутреннюю «память»
+      о том, что видела раньше. Дойдя до конца ряда, она по этой памяти выдаёт прогноз. Такие сети
+      созданы для упорядоченных во времени данных и сами решают, какие моменты истории важны — без
+      рукотворных признаков.</p>
+  </div>
+  <div class="card method orange">
+    <span class="tag">Обязательная подготовка</span>
+    <h4>Стандартизация и логарифм цели</h4>
+    <p>Перед обучением все четыре величины приводят к сопоставимому масштабу (<b>стандартизация</b> по
+      статистике обучающей части) — иначе сеть тянет один признак сильнее других просто из-за единиц
+      измерения. Цель, как и раньше, берётся в логарифме.</p>
+  </div>
+  <div class="card blue">
+    <span class="tag">Результат</span>
+    <h4>MAE 111 циклов · R² 0,82 · медианная ошибка 10,1%</h4>
+    <p>Сеть работает, но на этом объёме данных уступает фичевому подходу. Ей не хватает примеров,
+      чтобы выучить то, что физический признак ΔQ(V) задаёт напрямую.</p>
+  </div>
+</section>
+
+<!-- 8 -->
+<section id="compare">
+  <div class="kicker">Шаг 8 · Сравнение и мораль</div>
+  <h2><span class="step">★</span>Признаки против чёрного ящика</h2>
+  <div class="pipeline">
+    <div class="flow">
+      <span class="node">Первые 100 циклов</span><span class="arr">→</span>
+      <span class="node">Признаки + ΔQ(V)</span><span class="arr">→</span>
+      <span class="node win">LightGBM · R² 0,88</span>
+    </div>
+    <div class="flow">
+      <span class="node">Первые 100 циклов</span><span class="arr">→</span>
+      <span class="node">По-цикловые ряды</span><span class="arr">→</span>
+      <span class="node">LSTM · R² 0,82</span>
+    </div>
+  </div>
+  <table>
+    <tr><th>Подход</th><th>Что извлекает информацию</th><th>R²</th><th>MAE</th></tr>
+    <tr><td><b>Признаки + LightGBM</b></td><td>физический признак ΔQ(V)</td><td><span class="badge b-grn">0,88</span></td><td>88 циклов</td></tr>
+    <tr><td>LSTM</td><td>сеть учит по рядам сама</td><td><span class="badge b-blu">0,82</span></td><td>111 циклов</td></tr>
+  </table>
+  <p class="muted">Числа R² здесь — по честной оценке (для LightGBM это leave-one-out по всем ячейкам);
+    одиночный тест давал более оптимистичные 0,96, но опираться стоит на устойчивую оценку.</p>
+  <div class="tip"><b>Главный вывод занятия.</b> На малых данных (десятки ячеек) один продуманный
+    физический признак — доменное знание — часто сильнее «чёрного ящика» и при этом куда прозрачнее:
+    видно, на что опирается модель. Последовательностная сеть начинает выигрывать, когда ячеек тысячи
+    и придумать хорошие признаки руками трудно.</div>
+</section>
+
+<!-- 9 -->
+<section id="takeaways">
+  <div class="kicker">Итоги</div>
+  <h2><span class="step">i</span>Что мы поняли</h2>
+  <p>• <b>Хранение энергии измеримо.</b> Ресурс батареи можно предсказать по ранним циклам, когда
+    деградации ещё не видно.</p>
+  <p>• <b>Доменное знание против чёрного ящика.</b> Признак ΔQ(V) из физики разряда несёт почти весь
+    сигнал; на малых данных фичевый LightGBM не уступает LSTM и понятнее его.</p>
+  <p>• <b>Честное сравнение.</b> Оба подхода используют одинаковый горизонт (первые 100 циклов) —
+    разница только в способе извлечь информацию.</p>
+  <p>• <b>Утечка данных.</b> Снова сквозная тема курса: делим по ячейке, а не по отдельным циклам.</p>
+  <p>• <b>Объяснимость.</b> Важность признаков (аналог SHAP) показывает, что модель опирается именно
+    на ΔQ(V) — решению можно доверять.</p>
+</section>
+
+<!-- glossary -->
+<section id="glossary">
+  <div class="kicker">Справочник</div>
+  <h2><span class="step">i</span>Использованные методы — коротко</h2>
+  <table>
+    <tr><th>Метод / понятие</th><th>Суть в одном предложении</th></tr>
+    <tr><td><b>RUL</b></td><td>остаточный ресурс: число циклов до падения ёмкости до 80% от номинала.</td></tr>
+    <tr><td><b>Регрессия</b></td><td>построение зависимости «вход → числовой выход» по примерам.</td></tr>
+    <tr><td><b>ΔQ(V) и var_dQ_log</b></td><td>разница разрядных кривых на циклах 100 и 10; разброс этой разницы — сильнейший признак ресурса.</td></tr>
+    <tr><td><b>Дерево решений</b></td><td>каскад пороговых правил «если…то», аппроксимирующий зависимость кусочно.</td></tr>
+    <tr><td><b>Градиентный бустинг / LightGBM</b></td><td>ансамбль деревьев, строящихся последовательно: каждое исправляет ошибки предыдущих.</td></tr>
+    <tr><td><b>Логарифм цели</b></td><td>обучение на log10(ресурс): выравнивает сильный разброс значений.</td></tr>
+    <tr><td><b>LSTM</b></td><td>рекуррентная сеть, читающая последовательность шаг за шагом с внутренней «памятью».</td></tr>
+    <tr><td><b>Стандартизация</b></td><td>приведение признаков к сопоставимому масштабу; нужна для устойчивого обучения сети.</td></tr>
+    <tr><td><b>Leave-one-out</b></td><td>оценка по очереди на каждой убранной ячейке; устойчива на малых выборках.</td></tr>
+    <tr><td><b>Деление по объекту</b></td><td>train/test делят по ячейке, а не по записям, чтобы не было утечки.</td></tr>
+    <tr><td><b>Важность признаков</b></td><td>вклад каждого входа в точность модели (аналог SHAP).</td></tr>
+    <tr><td><b>R² / MAE / медианная ошибка</b></td><td>доля объяснённого разброса / средняя ошибка в циклах / типичная относительная ошибка.</td></tr>
+  </table>
+</section>
+
+</main>
+
+<footer class="wrap">
+  Разбор занятия по прогнозу остаточного ресурса аккумулятора.
+</footer>
+
+</body>
+</html>
